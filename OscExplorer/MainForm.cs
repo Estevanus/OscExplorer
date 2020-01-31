@@ -15,21 +15,29 @@ namespace OscExplorer
 	{
 		string folderIconPath = "icons/folder.ico";
 		string driveIconPath = "icons/disk.ico";
+		string fileIconPath = "";
 
 		System.IO.DriveInfo[] allDrivers;
 		List<string> daftarDriver = new List<string>();
 
+		public ListViewItem[] fileItemInListView;
+		public List<string> fileRecordInListView = new List<string>();
+		public List<string> trackedFilePath = new List<string>();
+
 		ImageList imagelist1 = new ImageList();
 		ImageList iList1 = new ImageList();
-		delegate void AddIList(string key, Icon icon);
+		delegate void AddIList(string key, Icon icon, string path);
 		delegate void SetIL();
 		Task fileThread;
+		public bool fileThreadLoop = false;
 
 		bool isJustStart = true;
 		string lastPath = "";
 		string[] imageFileCollection;
 
 		//string appPath = "";
+		//string myDocPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+		string thisConfigPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/OscExplorer";
 
 		int copyState = 0;//0 = nothing, 1 = copy, 2 = cut
 		List<string> filesToCopy = new List<string>();
@@ -51,6 +59,10 @@ namespace OscExplorer
 			listView1.KeyUp += ListView1_KeyUp;
 
 			mf = this;
+
+			folderIconPath = thisConfigPath + "/" + folderIconPath;
+			driveIconPath = thisConfigPath + "/" + driveIconPath;
+			fileIconPath = thisConfigPath + "/icons/file.ico";
 		}
 
 		private void ListView1_KeyUp(object sender, KeyEventArgs e)
@@ -380,9 +392,18 @@ namespace OscExplorer
 			}
 		}
 
-		public void AddIListFungtion(string key, Icon icon)
+		public void AddIListFungtion(string key, Icon icon, string path)
 		{
 			iList1.Images.Add(key, icon);
+			int lok = fileRecordInListView.IndexOf(key);
+			if (lok < fileItemInListView.Length && lok >= 0)
+			{
+				fileItemInListView[lok].ImageKey = key;
+				trackedFilePath.Add(path);
+			}
+			//ListViewItem item = new ListViewItem(key);
+			//item.ImageIndex
+			//listView1.Items.IndexOf(
 		}
 
 		private void ImagePlacer_Tick(object sender, EventArgs e)
@@ -425,7 +446,6 @@ namespace OscExplorer
 			System.IO.FileInfo[] files = pardir.GetFiles();
 
 			//int proCount = System.Environment.ProcessorCount;
-
 			AddIList tambahGambar = AddIListFungtion;
 			long totalFiles = files.Length;
 			System.Collections.Specialized.StringCollection keys = iList1.Images.Keys;
@@ -433,44 +453,49 @@ namespace OscExplorer
 			{
 				foreach (System.IO.FileInfo file in files)
 				{
-					if(keys.Contains(file.Name) == false)
-					Invoke(tambahGambar, new object[] { file.Name, System.Drawing.Icon.ExtractAssociatedIcon(file.FullName) });
-					Console.WriteLine(file.Name);
+					if (fileThreadLoop == false)
+					{
+						break;
+					}
+
+					if (keys.Contains(file.Name) == false)
+					{
+						Invoke(tambahGambar, new object[] { file.Name, System.Drawing.Icon.ExtractAssociatedIcon(file.FullName), file.FullName });
+						Console.WriteLine(file.Name);
+					}
 				}
+
+				fileThreadLoop = false;
 			};
 
-			if (fileThread == null)
-			{
-				fileThread = new Task(action);
-				fileThread.Start();
-			}
-			else
-			{
-				if (fileThread.IsCompleted)
-				{
-					fileThread.Dispose();
-					fileThread = new Task(action);
-					fileThread.Start();
-				}
-				else
-				{
-					//kill task
-				}
-			}
+			fileThread = new Task(action);
+			fileThread.Start();
 			//Task t1 = new Task(action);
 			//t1.Start();
 
 
-			ListViewItem[] items1 = new ListViewItem[totalFiles];
-
+			fileItemInListView = new ListViewItem[totalFiles];
+			string[] fnames = new string[totalFiles];
 
 			Parallel.For(0, totalFiles, (i) => {
-				items1[i] = new ListViewItem(files[i].Name);
-				items1[i].ImageKey = files[i].Name;
+				fileItemInListView[i] = new ListViewItem(files[i].Name);
+				//fileItemInListView[i].ImageKey = files[i].Name;
+				if (trackedFilePath.Contains(files[i].FullName))
+				{
+					fileItemInListView[i].ImageKey = files[i].Name;
+				}
+				else
+				{
+					fileItemInListView[i].ImageKey = "file";
+				}
+				fnames[i] = files[i].Name;
+				//fileRecordInListView[i] = files[i].Name;
+				//fileRecordInListView.Add(files[i].Name);
 				//imgs.Images.Add(files[i].Name, System.Drawing.Icon.ExtractAssociatedIcon(files[i].FullName));
 			});
 
-			listView1.Items.AddRange(items1);
+			fileRecordInListView.AddRange(fnames);
+			listView1.Items.AddRange(fileItemInListView);
 			//iList1.Images.AddRange(imgs.Images);
 
 			//t1.Wait();
@@ -481,22 +506,22 @@ namespace OscExplorer
 
 		}
 
-		public void SetIListImage()
+		delegate void AddIList2(ImageList imgs);
+		public void AddIListFungtion2(ImageList imgs)
 		{
-			string arah = addressBox.Text;
-			System.IO.DirectoryInfo pardir = new System.IO.DirectoryInfo(arah);
-
-			ImageList imgs = new ImageList();
-
-			foreach (System.IO.FileInfo file in pardir.GetFiles())
+			try
 			{
-				iList1.Images.Add(file.Name, System.Drawing.Icon.ExtractAssociatedIcon(file.FullName).ToBitmap());
+				listView1.LargeImageList = imgs;
+				listView1.SmallImageList = imgs;
 			}
-
-
-			//iList1 = imgs;
-			//listView1.LargeImageList = imgs;
-			//listView1.SmallImageList = imgs;
+			catch
+			{
+			}
+			finally
+			{
+			}
+			imgs.Images.Add("folder", new Bitmap(folderIconPath));
+			imgs.Images.Add("file", new Bitmap(fileIconPath));
 		}
 
 		public void GetFiles4()
@@ -508,17 +533,70 @@ namespace OscExplorer
 			int totalFiles = files.Length;
 			ListViewItem[] items1 = new ListViewItem[totalFiles];
 
+			//ImageList.ImageCollection imgs = new ImageList.ImageCollection();
 
 			Parallel.For(0, totalFiles, (i) => {
 				items1[i] = new ListViewItem(files[i].Name);
 				items1[i].ImageKey = files[i].Name;
-				//Invoke(tambahGambar, new object[] { file.Name, System.Drawing.Icon.ExtractAssociatedIcon(file.FullName) });
-				//imgs.Images.Add(files[i].Name, System.Drawing.Icon.ExtractAssociatedIcon(files[i].FullName));
+				
 			});
+
 			listView1.Items.AddRange(items1);
 
-			SetIL tambahGambar = SetIListImage;
-			Invoke(tambahGambar);
+			Action action = () => {
+				ImageList imgs = new ImageList();
+				imgs.ImageSize = new System.Drawing.Size(42, 42);
+				imgs.Images.AsParallel();
+
+				Parallel.For(0, totalFiles, (i) =>
+				{
+					imgs.Images.Add(files[i].Name, System.Drawing.Icon.ExtractAssociatedIcon(files[i].FullName).ToBitmap());
+					Console.WriteLine(files[i].Name);
+				});
+
+				AddIList2 tambahGambar = AddIListFungtion2;
+				Invoke(tambahGambar, new object[] { imgs });
+
+			};
+
+			Task t1 = new Task(action);
+			t1.Start();
+		}
+
+		delegate void SetIlist(Image[] imgs, string[] keys);
+		public void SetIList(Image[] imgs, string[] keys)
+		{
+			int lastILCount = iList1.Images.Count; ;
+
+			try
+			{
+				iList1.Images.AddRange(imgs);
+				int totalIMG = imgs.Length;
+
+				for (int i = lastILCount; i < iList1.Images.Count; i++)
+				{
+					iList1.Images.SetKeyName(i, keys[i - lastILCount]);
+					//Console.WriteLine("set >> " + keys[i - lastILCount] + " at index " + i.ToString());
+				}
+				//listView1.Refresh();
+				Console.WriteLine("done... Total image count is " + iList1.Images.Count.ToString() + " while before is " + lastILCount.ToString());
+
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine("Failed reason of " + ex.Message + ". Traced over " + ex.StackTrace);
+			}
+			finally
+			{
+			}
+
+			//listView1.Refresh();
+			foreach (ListViewItem item in listView1.Items)
+			{
+				if(item.ImageKey == "file")
+				item.ImageKey = item.Text;
+			}
+
 		}
 
 		public void GetFiles5()
@@ -533,29 +611,56 @@ namespace OscExplorer
 
 			//AddIList addIList = AddIListFungtion;
 
-			ImageList imgs = new ImageList();
-			imgs.ImageSize = new System.Drawing.Size(42, 42);
 			Parallel.For(0, totalFiles, (i) => {
 				items1[i] = new ListViewItem(files[i].Name);
-				items1[i].ImageKey = files[i].Name;
-				//imgs.Images.Add(files[i].Name, System.Drawing.Icon.ExtractAssociatedIcon(files[i].FullName).ToBitmap());
-				//addIList(files[i].Name, System.Drawing.Icon.ExtractAssociatedIcon(files[i].FullName));
-				//Invoke(addIList, new object[]{files[i].Name, System.Drawing.Icon.ExtractAssociatedIcon(files[i].FullName)});
+				//items1[i].ImageKey = files[i].Name;
+				items1[i].ImageKey = "file";
 			});
 
 			listView1.Items.AddRange(items1);
 
-			foreach (System.IO.FileInfo file in files)
-			{
-				imgs.Images.Add(file.Name, System.Drawing.Icon.ExtractAssociatedIcon(file.FullName).ToBitmap());
+			Action action = () => {
+				Image[] imgs = new Image[totalFiles];
+				string[] keys = new string[totalFiles];
+				long[] mapper = new long[totalFiles];
 
-			}
+				long n = 0;
+				Parallel.For(0, totalFiles, (i) => {
+					if (fileRecordInListView.Contains(files[i].Name) == false)
+					{
+						if (imageFileCollection.Contains(files[i].Extension))
+						{
+							imgs[i] = new Bitmap(@files[i].FullName);
+						}
+						else
+						{
+							imgs[i] = System.Drawing.Icon.ExtractAssociatedIcon(files[i].FullName).ToBitmap();
+						}
+						keys[i] = files[i].Name;
+						mapper[n] = i;
+						Console.WriteLine("processing file " + files[i].ToString());
+						n++;
+					}
+				});
 
-			listView1.LargeImageList = imgs;
-			listView1.SmallImageList = imgs;
-			listView1.Update();
-			//iList1.Images.Keys.AddRange(keys);
-			//iList1.Images.AddRange(imgs1);
+				Image[] imgs1 = new Image[n];
+				string[] keys1 = new string[n];
+				Parallel.For(0, n, (i)=> {
+					imgs1[i] = imgs[mapper[i]];
+					keys1[i] = keys[mapper[i]];
+				});
+
+
+				//Console.WriteLine("size of file record is " + fileRecordInListView.Count());
+				SetIlist sl = SetIList;
+
+				fileRecordInListView.AddRange(keys1);
+				Invoke(sl, new object[] { imgs1, keys1 });
+				
+			};
+
+			Task t1 = new Task(action);
+			t1.Start();
 		}
 
 		public void GetFiles6()
@@ -606,13 +711,24 @@ namespace OscExplorer
 		public void GetDirItems()
 		{
 			listView1.Clear();//membersihkan items dalam list view
-			//iList1.Images.Clear();
+							  //iList1.Images.Clear();
+			//fileRecordInListView.Clear();//ketika pake GetFiles5 maka perlu mo kase ilang dulu dp reset ini
+
+			if (fileThreadLoop == true)
+			{
+				fileThreadLoop = false;
+			}
+			else
+			{
+				fileThreadLoop = true;
+			}
+
 
 			//GetDirecktories();
 			coba_delegate getDir = GetDirecktories;
 			getDir();
-			//GetFiles();
-			GetFiles6();
+			//GetFiles3();
+			GetFiles5();
 			//coba_delegate2 cobalah = GetFiles2;
 			//Invoke(cobalah, 3, 4);
 		}
@@ -735,7 +851,7 @@ namespace OscExplorer
 
 		private void MainForm_Load(object sender, EventArgs e)
 		{
-			imageFileCollection = new string[] {".jpg", ".png" };
+			imageFileCollection = new string[] {".jpg", ".png", ".jpeg" };
 
 			iList1.ImageSize = new System.Drawing.Size(42, 42);
 
@@ -754,6 +870,7 @@ namespace OscExplorer
 			//Icon icoFolder = System.Drawing.Icon.ExtractAssociatedIcon(folderIconPath);
 			//iList1.Images.Add("folder", new Bitmap(@folderIconPath)); ;
 			iList1.Images.Add("folder", new Icon(folderIconPath)); ;
+			iList1.Images.Add("file", new Icon(fileIconPath)); ;
 
 		}
 

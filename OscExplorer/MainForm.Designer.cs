@@ -101,7 +101,7 @@
 			this.treeView1.Name = "treeView1";
 			this.treeView1.RightToLeft = System.Windows.Forms.RightToLeft.Yes;
 			this.treeView1.Size = new System.Drawing.Size(135, 375);
-			this.treeView1.TabIndex = 2;
+			this.treeView1.TabIndex = 3;
 			this.treeView1.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.TreeView1_AfterSelect);
 			// 
 			// listView1
@@ -112,7 +112,7 @@
 			this.listView1.Location = new System.Drawing.Point(135, 75);
 			this.listView1.Name = "listView1";
 			this.listView1.Size = new System.Drawing.Size(665, 375);
-			this.listView1.TabIndex = 3;
+			this.listView1.TabIndex = 2;
 			this.listView1.UseCompatibleStateImageBehavior = false;
 			// 
 			// dirContextMenu
